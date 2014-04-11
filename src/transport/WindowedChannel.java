@@ -246,23 +246,12 @@ public class WindowedChannel implements NetworkListener {
 		}
 
 		public void receivedACK(int seq, int ack) {
-			System.out.println(" _ __ _ __ _ __ _  _ __ _ _ _ __ _");
-			System.out.print("ACKEXP: ");
-			for (int i : expectedACK) {
-				System.out.print(i + " ");
-			}
-			System.out.println("");
+
 			int index = expectedACK.indexOf(ack);
 			if (index > -1) {
 				System.out.println("ACK: " + ack);
 				expectedACK.remove(index);
 			}
-
-			System.out.print("ACKEXP: ");
-			for (int i : expectedACK) {
-				System.out.print(i + " ");
-			}
-			System.out.println(" _ __ _ __ _ __ _  _ __ _ _ _ __ _");
 
 		}
 
