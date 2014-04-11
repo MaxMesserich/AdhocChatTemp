@@ -13,7 +13,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.SortedSet;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -42,6 +44,7 @@ public class WindowedChannel implements NetworkListener {
 	private boolean expectNewStream = true;
 	private boolean packetCountKnow = false;
 	private int packetCount;
+
 	private ArrayList<Integer> openSequences = new ArrayList<Integer>();
 	
 	private HashMap<Integer, byte[]> integerSequencemap = new HashMap();
@@ -97,7 +100,7 @@ public class WindowedChannel implements NetworkListener {
 			} else {
 				currentWindow.add(packet);
 			}
-			System.out.println("ACK SEND: "+packet.getAcknowledgeNumber());
+
 
 		}
 
@@ -349,18 +352,25 @@ public class WindowedChannel implements NetworkListener {
 
 	public byte[] parseFile(ArrayList<Byte> bytes) {
 		int length = 0;
-		for(int i : integerSequencemap.keySet()){
-			length += integerSequencemap.get(i).length;
-			System.out.println(i+", "+new String(integerSequencemap.get(i)));
-		}
-		byte[] ret = new byte[length];
-		for(int i : integerSequencemap.keySet()){
-			for(int a = 0; a<integerSequencemap.get(i).length; a++){
-				ret[i*a] = integerSequencemap.get(i)[a];
+		ArrayList<Integer> keys = new ArrayList<Integer>();
+		keys.addAll(integerSequencemap.keySet());
+		Collections.sort(keys);
+		ArrayList<Byte> file= new ArrayList<Byte>();
+
+	
+		for(int i : keys){
+			
+			byte[ ] temp = integerSequencemap.get(i);
+			for(int a = 0; a<temp.length; a++){
+				file.add(temp[a]);
 			}
 			
 		}
-
+		length = file.size();
+		byte[] ret = new byte[length];
+		for(int i=0; i<length;i++){
+			ret[i] = file.get(i);
+		}
 		
 		return ret;
 
@@ -408,30 +418,34 @@ public class WindowedChannel implements NetworkListener {
 					// packetList.add(transportPacket);
 					queueSender.priorityPacket(transportPacket);
 					if (expectNewStream) {
-						System.out.println("NEW FILE");
+
 						integerSequencemap.clear();
+						expectNewStream = false;
+						packetCountKnow = false;
 					}
 
 
-					System.out.println("Received :"+seq);
 
+					if (received.getStreamNumber()==this.streamNumber&&!integerSequencemap.containsKey(seq)) {
 
-					if (!integerSequencemap.containsKey(seq)) {
 						integerSequencemap.put(seq, received.getData());
-						if(transportPacket.isFlagSet(TransportPacket.FRAGMENTED)){
+						if(received.isFlagSet(TransportPacket.FRAGMENTED)){
 							packetCountKnow = true;
-							packetCount = seq;
-							System.out.println("SEQCOUNT: "+seq);
+							packetCount = seq+1;
+							
+
 						}
 //						System.out.println("Received :"+seq);
 
 					}
-					if (packetCountKnow&&integerSequencemap.size()==seq) {
-						System.out.println("FILE COMPLETE!");
+		
+					if (packetCountKnow&&integerSequencemap.size()==packetCount) {
+
 
 						System.out.println(new String(parseFile(tempFile)));
 						tempFile.clear();
 						expectNewStream = true;
+						streamNumber++;
 					}
 
 					// Set packet data
