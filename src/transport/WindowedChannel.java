@@ -17,14 +17,13 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import sun.rmi.transport.Transport;
-
 import network.NetworkInterface;
 import network.NetworkListener;
 import network.NetworkPacket;
 
 public class WindowedChannel implements NetworkListener {
 	public static final int WNDSZ = 5;
-	private static final int MSS = 20;
+	private static final int MSS = 200;
 	private InetAddress localAddress;
 	private InetAddress address;
 	private NetworkInterface networkInterface;
@@ -79,7 +78,7 @@ public class WindowedChannel implements NetworkListener {
 		public void priorityPacket(TransportPacket packet) {
 			if (currentWindow.size() > 0) {
 				int i = 0;
-				while (i<currentWindow.size()) {
+				while (i < currentWindow.size()) {
 					if (i < currentWindow.size()
 							&& !currentWindow.get(i).isFlagSet(
 									TransportPacket.ACK_FLAG)) {
@@ -91,7 +90,7 @@ public class WindowedChannel implements NetworkListener {
 			} else {
 				currentWindow.add(packet);
 			}
-			// System.out.println("NEW PRIORITY " + currentWindow.size());
+
 		}
 
 		public QueueSender(ArrayList<TransportPacket> queue) {
@@ -109,7 +108,7 @@ public class WindowedChannel implements NetworkListener {
 				while (currentWindow.size() < WNDSZ && packetList.size() > 0
 						&& index < packetList.size()) {
 
-					System.out.print("filling window--");
+
 					TransportPacket t = null;
 					// fill expectedACK with next seqs
 					t = packetList.get(index);
@@ -120,14 +119,10 @@ public class WindowedChannel implements NetworkListener {
 					} else {
 						// If not continue polling and adding expected ACK's
 						// packetList.poll();
-						System.out.println("sup");
+
 						if (!t.isFlagSet(TransportPacket.ACK_FLAG)) {
-							System.out.println(t.getSequenceNumber());
+
 							expectedACK.add(t.getSequenceNumber());
-						} else {
-							System.out.println("ack");
-							System.out.println("ACK_FLAG SET "
-									+ t.getAcknowledgeNumber());
 						}
 						currentWindow.add(t);
 						// Reset sendIndex to 0 to start at the beginning of
@@ -148,19 +143,21 @@ public class WindowedChannel implements NetworkListener {
 			// synchronized (packetList) {
 			// while (true) {
 			// Try sending as long as there are packets left to send
-			if (packetList.size() > 0 || expectedACK.size() > 0) {
+			if (packetList.size() > 0 || currentWindow.size() > 0) {
 				/**
 				 * Check whether the first packet in the queue has a new
 				 * streamIndex -> increment streamIndex Starts transmission of a
 				 * new file\message
 				 **/
+
 				if (expectedACK.size() == 0
+						&& packetList.size() > 0
 						&& packetList.get(0).getStreamNumber() != this.currentStream) {
 					currentStream++;
-					// System.out.println("                   NEW STREAM: "
-					// + currentStream);
+
 				}
 				this.fillWindow();
+
 				// If all packets have been ack'ed, read load next packets
 				// for in send queue
 				//
@@ -178,24 +175,12 @@ public class WindowedChannel implements NetworkListener {
 						// Check whether ACK has been removed from the list
 						// of
 						// expected ACKS or packet is an ACK packet
-						System.out.print("      EXP: ");
-						for (int i : expectedACK) {
-							System.out.print(i + " ");
-						}
-						System.out.println("");
+
 						if (expectedACK.contains(currentWindow.get(sendIndex)
 								.getSequenceNumber())
 								|| currentWindow.get(sendIndex).isFlagSet(
 										TransportPacket.ACK_FLAG)) {
-							if (currentWindow.get(sendIndex).isFlagSet(
-									TransportPacket.ACK_FLAG)) {
-								System.out.println("SEQ: "
-										+ currentWindow.get(sendIndex)
-												.getSequenceNumber()
-										+ " | "
-										+ currentWindow.get(sendIndex)
-												.getAcknowledgeNumber());
-							}
+
 							try {
 								networkInterface.send(networkPacket);
 
@@ -232,7 +217,7 @@ public class WindowedChannel implements NetworkListener {
 
 							// DEBUG: remove first last entry from ACK list.
 							// expectedACK.remove(expectedACK.size() - 1);
-							System.out.println("--------------------");
+
 						}
 					}
 				}
@@ -255,12 +240,13 @@ public class WindowedChannel implements NetworkListener {
 				System.out.println("ACK: " + ack);
 				expectedACK.remove(index);
 			}
-			System.out.println(" _ __ _ __ _ __ _  _ __ _ _ _ __ _");
+			
 			System.out.print("ACKEXP: ");
 			for (int i : expectedACK) {
 				System.out.print(i + " ");
 			}
-			System.out.println("");
+			System.out.println(" _ __ _ __ _ __ _  _ __ _ _ _ __ _");
+
 		}
 
 	}
@@ -335,11 +321,14 @@ public class WindowedChannel implements NetworkListener {
 
 	@Override
 	public void onReceive(NetworkPacket packet) {
+
 		if (packet.getSourceAddress().equals(address)
 				&& packet.isFlagSet(NetworkPacket.TRANSPORT_FLAG)) {
+
 			TransportPacket received = TransportPacket.parseBytes(packet
 					.getData());
 			if (received != null) {
+
 				if (received.isFlagSet(TransportPacket.ACK_FLAG)) {
 					System.out.println("GOT ACK "
 							+ received.getAcknowledgeNumber());

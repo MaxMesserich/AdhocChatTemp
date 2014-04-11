@@ -34,11 +34,12 @@ public class Main implements NetworkDiscoveryListener {
 	
 	public Main() throws IOException {
 		devices = new HashMap<>();
-		
+		System.out.println("START");
 		// 130.89.130.41
 		// 130.89.130.15
 		// 55555
-		NetworkInterface networkInterface = new NetworkInterface(InetAddress.getByName("130.89.130.41"), 55555);
+		devices = new HashMap();
+		NetworkInterface networkInterface = new NetworkInterface(InetAddress.getByName("130.89.140.43"), 55555);
 		networkInterface.start();
 		
 		NetworkDiscovery networkDiscovery = new NetworkDiscovery(networkInterface, "yolo");
@@ -47,16 +48,11 @@ public class Main implements NetworkDiscoveryListener {
 		networkInterface.addNetworkListener(networkDiscovery);
 		
 		
-		WindowedChannel channel = new WindowedChannel(InetAddress.getByName("130.89.130.41"), InetAddress.getByName("130.89.130.15"), networkInterface);
+		WindowedChannel channel = new WindowedChannel(InetAddress.getByName("130.89.169.104"), InetAddress.getByName("130.89.140.43"), networkInterface);
 
 		networkInterface.addNetworkListener(channel);
 		
-		BufferedWriter out = new BufferedWriter(new OutputStreamWriter(channel.getOutputStream()));
-		
-		out.write(new String(new byte[1000]));
-		out.newLine();
-		out.flush();	
-		
+//		BufferedWriter out = new BufferedWriter(new OutputStreamWriter(channel.getOutputStream()));
 	}
 	
 }

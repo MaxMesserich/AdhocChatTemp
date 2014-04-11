@@ -122,9 +122,7 @@ public class NetworkInterface extends Thread {
 		byte[] packetData = networkPacket.getBytes();
 
 		DatagramPacket packet = new DatagramPacket(packetData, packetData.length, group, port);
-		
-		System.out.println("packet send");
-		
+
 		sendSocket.send(packet);
 	}
 	
