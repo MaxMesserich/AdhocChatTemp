@@ -38,6 +38,8 @@ public class WindowedChannel implements NetworkListener {
 	private Timer timer;
 	// QUEUE for important packets
 	private ArrayList<TransportPacket> packetList = new ArrayList<TransportPacket>();
+	private ArrayList<Byte> tempFile = new ArrayList<Byte>();
+	private byte lastStream = -1;
 	// private ArrayList<TranportPacket>
 
 	private byte streamNumber = 0;
@@ -107,7 +109,6 @@ public class WindowedChannel implements NetworkListener {
 				System.out.println("window empty");
 				while (currentWindow.size() < WNDSZ && packetList.size() > 0
 						&& index < packetList.size()) {
-
 
 					TransportPacket t = null;
 					// fill expectedACK with next seqs
@@ -240,7 +241,7 @@ public class WindowedChannel implements NetworkListener {
 				System.out.println("ACK: " + ack);
 				expectedACK.remove(index);
 			}
-			
+
 			System.out.print("ACKEXP: ");
 			for (int i : expectedACK) {
 				System.out.print(i + " ");
@@ -319,6 +320,18 @@ public class WindowedChannel implements NetworkListener {
 		return in;
 	}
 
+	public static byte[] parseFile(ArrayList<Byte> bytes) {
+		int length = bytes.size();
+
+		byte[ ] ret = new byte[length];
+	
+	}
+	public void addBytesToFile(ArrayList<Byte> bytes, byte[] data){
+		for(byte b : data){
+			bytes.add(b);
+		}
+	}
+
 	@Override
 	public void onReceive(NetworkPacket packet) {
 
@@ -337,7 +350,18 @@ public class WindowedChannel implements NetworkListener {
 				} else {
 					// IF ACK field == -1 -> data packet
 					// -> add to queue and send ack
-
+					boolean endOfFile = false;
+					if (lastStream == -1) {
+						lastStream = received.getStreamNumber();
+					} else {
+						if (received.getStreamNumber() > lastStream) {
+							endOfFile = true;
+							lastStream = received.getStreamNumber();
+			
+						}else{
+							addBytesToFile(tempFile,received.getData());
+						}
+					}
 					TransportPacket transportPacket = new TransportPacket(0,
 							received.getAcknowledgeNumber(),
 							TransportPacket.ACK_FLAG,
@@ -352,6 +376,8 @@ public class WindowedChannel implements NetworkListener {
 					queueSender.priorityPacket(transportPacket);
 
 					// Set packet data
+					// Add received data to temporary file
+
 
 				}
 			}
