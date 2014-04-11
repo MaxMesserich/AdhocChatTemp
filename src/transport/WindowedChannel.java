@@ -13,10 +13,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import sun.rmi.transport.Transport;
 import network.NetworkInterface;
 import network.NetworkListener;
 import network.NetworkPacket;
@@ -43,6 +43,8 @@ public class WindowedChannel implements NetworkListener {
 
 	private boolean expectNewStream = true;
 	private ArrayList<Integer> openSequences = new ArrayList<Integer>();
+	
+	private HashMap<Integer, byte[]> integerSequencemap = new HashMap();
 	// private ArrayList<TranportPacket>
 
 	private byte streamNumber = 0;
@@ -278,6 +280,8 @@ public class WindowedChannel implements NetworkListener {
 					byte[] data = in.readLine().getBytes();
 					int dataPosition = 0;
 					if (data.length > 0) {
+				
+						ArrayList<TransportPacket> temp = new ArrayList<TransportPacket>();
 						while (data.length - dataPosition > MSS) {
 							// System.out.println(data.length + ", " +
 							// dataPosition
@@ -292,7 +296,7 @@ public class WindowedChannel implements NetworkListener {
 							transportPacket.setStreamNumber(streamNumber);
 							transportPacket.setSequenceNumber(seqNumber);
 							// transportPacket.setAcknowledgeNumber(seqNumber);
-							packetList.add(transportPacket);
+							temp.add(transportPacket);
 
 							dataPosition += MSS;
 							seqNumber++;
@@ -310,13 +314,17 @@ public class WindowedChannel implements NetworkListener {
 							transportPacket.setStreamNumber(streamNumber);
 							transportPacket.setSequenceNumber(seqNumber);
 							transportPacket.setAcknowledgeNumber(seqNumber);
-							packetList.add(transportPacket);
+							temp.add(transportPacket);
 
 						}
 						// SET FLAG for last packet in list to mark end of file
 						System.out.println("ADDED FILE TO QUEUE: "+packetList.size());
-						packetList.get(packetList.size() - 1).setFlags(
+						temp.get(temp.size() - 1).setFlags(
 								TransportPacket.MORE_FRAGMENTS_FLAG);
+						for(TransportPacket p : temp){
+							p.setPacketCount(temp.size());
+						}
+						packetList.addAll(temp);
 						seqNumber++;
 						//
 						seqNumber = 0;
@@ -338,13 +346,20 @@ public class WindowedChannel implements NetworkListener {
 		return in;
 	}
 
-	public static byte[] parseFile(ArrayList<Byte> bytes) {
-		int length = bytes.size();
-
-		byte[] ret = new byte[length];
-		for(int i=0; i<length; i++){
-			ret[i] = bytes.get(i);
+	public byte[] parseFile(ArrayList<Byte> bytes) {
+		int length = 0;
+		for(int i : integerSequencemap.keySet()){
+			length += integerSequencemap.get(i).length;
 		}
+		byte[] ret = new byte[length];
+		for(int i : integerSequencemap.keySet()){
+			for(int a = 0; a<integerSequencemap.get(i).length; a++){
+				ret[i*a] = integerSequencemap.get(i)[a];
+			}
+			
+		}
+
+		
 		return ret;
 
 	}
@@ -410,7 +425,8 @@ public class WindowedChannel implements NetworkListener {
 
 					if (openSequences.contains(seq)) {
 						System.out.println("Found");
-						addBytesToFile(tempFile, received.getData());
+						integerSequencemap.put(seq, received.getData());
+//						addBytesToFile(tempFile, received.getData());
 						openSequences.remove(openSequences.indexOf(received
 								.getSequenceNumber()));
 					}
