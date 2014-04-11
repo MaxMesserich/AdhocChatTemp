@@ -307,6 +307,8 @@ public class WindowedChannel implements NetworkListener {
 							packetList.add(transportPacket);
 
 						}
+						//SET FLAG for last packet in list to mark end of file
+						packetList.get(packetList.size()-1).setFlags(TransportPacket.MORE_FRAGMENTS_FLAG);
 						seqNumber++;
 						//
 						seqNumber = 0;
@@ -363,10 +365,13 @@ public class WindowedChannel implements NetworkListener {
 					if (lastStream == -1) {
 						lastStream = received.getStreamNumber();
 					} else {
-						if (received.getStreamNumber() > lastStream) {
+						if (received.getStreamNumber() > lastStream || received.isFlagSet(TransportPacket.MORE_FRAGMENTS_FLAG)) {
+							System.out.println("FILE COMPLETE!");
 							endOfFile = true;
 							lastStream = received.getStreamNumber();
+							System.out.println(parseFile(tempFile));
 							System.out.println(new String(parseFile(tempFile)));
+							tempFile.clear();
 
 						} else {
 							addBytesToFile(tempFile, received.getData());
