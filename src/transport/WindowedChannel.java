@@ -23,7 +23,7 @@ import network.NetworkPacket;
 
 public class WindowedChannel implements NetworkListener {
 	public static final int WNDSZ = 5;
-	private static final int MSS = 200;
+	private static final int MSS = 20;
 	private InetAddress localAddress;
 	private InetAddress address;
 	private NetworkInterface networkInterface;
@@ -115,7 +115,12 @@ public class WindowedChannel implements NetworkListener {
 					t = packetList.get(index);
 					// Check whether packet has same stream number
 					if (t.getStreamNumber() != this.currentStream) {
-						System.out.println("wrong stream");
+						System.out.println("wrong stream"+ t.getStreamNumber()+", "+currentStream);
+						for(int i=0; i<packetList.size(); i++){
+							System.out.print(packetList.get(i).getStreamNumber());
+						}
+						System.out.println("");
+						System.out.println("WINDOW: "+currentWindow.size());
 						break;
 					} else {
 						// If not continue polling and adding expected ACK's
@@ -266,50 +271,52 @@ public class WindowedChannel implements NetworkListener {
 				try {
 					byte[] data = in.readLine().getBytes();
 					int dataPosition = 0;
+					if (data.length > 0) {
+						while (data.length - dataPosition > MSS) {
+							// System.out.println(data.length + ", " +
+							// dataPosition
+							// + " -- " + MSS);
 
-					while (data.length - dataPosition > MSS) {
-						// System.out.println(data.length + ", " +
-						// dataPosition
-						// + " -- " + MSS);
+							byte[] packetData = Arrays.copyOfRange(data,
+									dataPosition, dataPosition + MSS);
 
-						byte[] packetData = Arrays.copyOfRange(data,
-								dataPosition, dataPosition + MSS);
+							TransportPacket transportPacket = new TransportPacket(
+									packetData);
+							// Set packet data
+							transportPacket.setStreamNumber(streamNumber);
+							transportPacket.setSequenceNumber(seqNumber);
+							// transportPacket.setAcknowledgeNumber(seqNumber);
+							packetList.add(transportPacket);
 
-						TransportPacket transportPacket = new TransportPacket(
-								packetData);
-						// Set packet data
-						transportPacket.setStreamNumber(streamNumber);
-						transportPacket.setSequenceNumber(seqNumber);
-						// transportPacket.setAcknowledgeNumber(seqNumber);
-						packetList.add(transportPacket);
+							dataPosition += MSS;
+							seqNumber++;
+						}
+						if (dataPosition < data.length) {
+							byte[] packetData = new byte[data.length
+									- dataPosition];
 
-						dataPosition += MSS;
+							System.arraycopy(data, dataPosition, packetData, 0,
+									packetData.length);
+
+							TransportPacket transportPacket = new TransportPacket(
+									packetData);
+							// Set packet data
+							transportPacket.setStreamNumber(streamNumber);
+							transportPacket.setSequenceNumber(seqNumber);
+							transportPacket.setAcknowledgeNumber(seqNumber);
+							packetList.add(transportPacket);
+
+						}
 						seqNumber++;
+						//
+						seqNumber = 0;
+						streamNumber++;
+						System.out.println("new stream number: "+streamNumber);
 					}
-					if (dataPosition < data.length) {
-						byte[] packetData = new byte[data.length - dataPosition];
-
-						System.arraycopy(data, dataPosition, packetData, 0,
-								packetData.length);
-
-						TransportPacket transportPacket = new TransportPacket(
-								packetData);
-						// Set packet data
-						transportPacket.setStreamNumber(streamNumber);
-						transportPacket.setSequenceNumber(seqNumber);
-						transportPacket.setAcknowledgeNumber(seqNumber);
-						packetList.add(transportPacket);
-
-					}
-					seqNumber++;
 				} catch (IOException e) {
 				}
-				//
-				seqNumber = 0;
-				streamNumber++;
 			}
 		}
-
 	}
 
 	public OutputStream getOutputStream() {
@@ -323,12 +330,13 @@ public class WindowedChannel implements NetworkListener {
 	public static byte[] parseFile(ArrayList<Byte> bytes) {
 		int length = bytes.size();
 
-		byte[ ] ret = new byte[length];
+		byte[] ret = new byte[length];
 		return ret;
-	
+
 	}
-	public void addBytesToFile(ArrayList<Byte> bytes, byte[] data){
-		for(byte b : data){
+
+	public void addBytesToFile(ArrayList<Byte> bytes, byte[] data) {
+		for (byte b : data) {
 			bytes.add(b);
 		}
 	}
@@ -359,9 +367,9 @@ public class WindowedChannel implements NetworkListener {
 							endOfFile = true;
 							lastStream = received.getStreamNumber();
 							System.out.println(new String(parseFile(tempFile)));
-			
-						}else{
-							addBytesToFile(tempFile,received.getData());
+
+						} else {
+							addBytesToFile(tempFile, received.getData());
 						}
 					}
 					TransportPacket transportPacket = new TransportPacket(0,
@@ -379,7 +387,6 @@ public class WindowedChannel implements NetworkListener {
 
 					// Set packet data
 					// Add received data to temporary file
-
 
 				}
 			}
@@ -434,6 +441,10 @@ public class WindowedChannel implements NetworkListener {
 		BufferedWriter out = new BufferedWriter(new OutputStreamWriter(
 				channel.getOutputStream()));
 
+		out.write(new String(new byte[50]));
+		out.newLine();
+
+		out.flush();
 		out.write(new String(new byte[50]));
 		out.newLine();
 		out.flush();
