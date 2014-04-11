@@ -95,6 +95,7 @@ public class WindowedChannel implements NetworkListener {
 			} else {
 				currentWindow.add(packet);
 			}
+			System.out.println("ACK SEND: "+packet.getAcknowledgeNumber());
 
 		}
 
@@ -341,6 +342,9 @@ public class WindowedChannel implements NetworkListener {
 		int length = bytes.size();
 
 		byte[] ret = new byte[length];
+		for(int i=0; i<length; i++){
+			ret[i] = bytes.get(i);
+		}
 		return ret;
 
 	}
@@ -374,6 +378,7 @@ public class WindowedChannel implements NetworkListener {
 					// -> add to queue and send ack
 
 					// Read how many packets have to be expected
+					int seq = received.getSequenceNumber();
 					TransportPacket transportPacket = new TransportPacket(0,
 							received.getAcknowledgeNumber(),
 							TransportPacket.ACK_FLAG,
@@ -381,29 +386,30 @@ public class WindowedChannel implements NetworkListener {
 					//
 
 					//
-					transportPacket.setAcknowledgeNumber(received
-							.getSequenceNumber());
+					transportPacket.setAcknowledgeNumber(seq);
 					// queueSender.priorityPacket(transportPacket);
 					// packetList.add(transportPacket);
 					queueSender.priorityPacket(transportPacket);
 					if (expectNewStream) {
 						openSequences.clear();
-						for (int i = 0; i == received.getPacketCount(); i++) {
+						for (int i = 0; i <= received.getPacketCount()+1; i++) {
 							openSequences.add(i);
 						}
+						expectNewStream = false;
 					}
 					boolean endOfFile = false;
 
-					int seq = received.getSequenceNumber();
-
-					System.out.println(seq);
+					
 					System.out.print("---> ");
 					for (int a : openSequences) {
 						System.out.print(a + ", ");
 					}
 					System.out.println("");
+					System.out.println("Received :"+seq);
+
 
 					if (openSequences.contains(seq)) {
+						System.out.println("Found");
 						addBytesToFile(tempFile, received.getData());
 						openSequences.remove(openSequences.indexOf(received
 								.getSequenceNumber()));
@@ -411,9 +417,7 @@ public class WindowedChannel implements NetworkListener {
 					if (openSequences.size() == 0) {
 						System.out.println("FILE COMPLETE!");
 						endOfFile = true;
-						addBytesToFile(tempFile, received.getData());
 						lastStream = received.getStreamNumber();
-						System.out.println(parseFile(tempFile));
 						System.out.println(new String(parseFile(tempFile)));
 						tempFile.clear();
 						expectNewStream = true;
