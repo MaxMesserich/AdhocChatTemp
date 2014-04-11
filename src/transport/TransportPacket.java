@@ -11,7 +11,7 @@ public class TransportPacket {
 	
 	private int sequenceNumber;
 	private int acknowledgeNumber;
-	
+	private int packetCount;
 	private byte flags;
 	private byte streamNumber;
 	private byte reserved;
@@ -32,7 +32,9 @@ public class TransportPacket {
 		this.padding = 0;
 		this.data = data;
 	}
-	
+	public int getPacketCount(){
+		return packetCount;
+	}
 	public int getSequenceNumber() {
 		return sequenceNumber;
 	}
@@ -88,7 +90,9 @@ public class TransportPacket {
 	public void setData(byte[] data) {
 		this.data = data;
 	}
-	
+	public void setPacketCount(int packetCount){
+		this.packetCount = packetCount;
+	}
 	public byte[] getBytes() {
 		byte[] bytes = new byte[HEADER_LENGTH + data.length];
 		

@@ -40,6 +40,9 @@ public class WindowedChannel implements NetworkListener {
 	private ArrayList<TransportPacket> packetList = new ArrayList<TransportPacket>();
 	private ArrayList<Byte> tempFile = new ArrayList<Byte>();
 	private byte lastStream = -1;
+
+	private boolean expectNewStream = true;
+	private ArrayList<Integer> openSequences = new ArrayList<Integer>();
 	// private ArrayList<TranportPacket>
 
 	private byte streamNumber = 0;
@@ -115,12 +118,14 @@ public class WindowedChannel implements NetworkListener {
 					t = packetList.get(index);
 					// Check whether packet has same stream number
 					if (t.getStreamNumber() != this.currentStream) {
-						System.out.println("wrong stream"+ t.getStreamNumber()+", "+currentStream);
-						for(int i=0; i<packetList.size(); i++){
-							System.out.print(packetList.get(i).getStreamNumber());
+						System.out.println("wrong stream" + t.getStreamNumber()
+								+ ", " + currentStream);
+						for (int i = 0; i < packetList.size(); i++) {
+							System.out.print(packetList.get(i)
+									.getStreamNumber());
 						}
 						System.out.println("");
-						System.out.println("WINDOW: "+currentWindow.size());
+						System.out.println("WINDOW: " + currentWindow.size());
 						break;
 					} else {
 						// If not continue polling and adding expected ACK's
@@ -307,13 +312,16 @@ public class WindowedChannel implements NetworkListener {
 							packetList.add(transportPacket);
 
 						}
-						//SET FLAG for last packet in list to mark end of file
-						packetList.get(packetList.size()-1).setFlags(TransportPacket.MORE_FRAGMENTS_FLAG);
+						// SET FLAG for last packet in list to mark end of file
+						System.out.println("ADDED FILE TO QUEUE: "+packetList.size());
+						packetList.get(packetList.size() - 1).setFlags(
+								TransportPacket.MORE_FRAGMENTS_FLAG);
 						seqNumber++;
 						//
 						seqNumber = 0;
 						streamNumber++;
-						System.out.println("new stream number: "+streamNumber);
+						System.out
+								.println("new stream number: " + streamNumber);
 					}
 				} catch (IOException e) {
 				}
@@ -340,7 +348,10 @@ public class WindowedChannel implements NetworkListener {
 	public void addBytesToFile(ArrayList<Byte> bytes, byte[] data) {
 		for (byte b : data) {
 			bytes.add(b);
+//			System.out.print(b + " ");
 		}
+//		System.out.println(new String(data));
+		System.out.println("currentfile size: " + bytes.size());
 	}
 
 	@Override
@@ -361,22 +372,8 @@ public class WindowedChannel implements NetworkListener {
 				} else {
 					// IF ACK field == -1 -> data packet
 					// -> add to queue and send ack
-					boolean endOfFile = false;
-					if (lastStream == -1) {
-						lastStream = received.getStreamNumber();
-					} else {
-						if (received.getStreamNumber() > lastStream || received.isFlagSet(TransportPacket.MORE_FRAGMENTS_FLAG)) {
-							System.out.println("FILE COMPLETE!");
-							endOfFile = true;
-							lastStream = received.getStreamNumber();
-							System.out.println(parseFile(tempFile));
-							System.out.println(new String(parseFile(tempFile)));
-							tempFile.clear();
 
-						} else {
-							addBytesToFile(tempFile, received.getData());
-						}
-					}
+					// Read how many packets have to be expected
 					TransportPacket transportPacket = new TransportPacket(0,
 							received.getAcknowledgeNumber(),
 							TransportPacket.ACK_FLAG,
@@ -389,6 +386,38 @@ public class WindowedChannel implements NetworkListener {
 					// queueSender.priorityPacket(transportPacket);
 					// packetList.add(transportPacket);
 					queueSender.priorityPacket(transportPacket);
+					if (expectNewStream) {
+						openSequences.clear();
+						for (int i = 0; i == received.getPacketCount(); i++) {
+							openSequences.add(i);
+						}
+					}
+					boolean endOfFile = false;
+
+					int seq = received.getSequenceNumber();
+
+					System.out.println(seq);
+					System.out.print("---> ");
+					for (int a : openSequences) {
+						System.out.print(a + ", ");
+					}
+					System.out.println("");
+
+					if (openSequences.contains(seq)) {
+						addBytesToFile(tempFile, received.getData());
+						openSequences.remove(openSequences.indexOf(received
+								.getSequenceNumber()));
+					}
+					if (openSequences.size() == 0) {
+						System.out.println("FILE COMPLETE!");
+						endOfFile = true;
+						addBytesToFile(tempFile, received.getData());
+						lastStream = received.getStreamNumber();
+						System.out.println(parseFile(tempFile));
+						System.out.println(new String(parseFile(tempFile)));
+						tempFile.clear();
+						expectNewStream = true;
+					}
 
 					// Set packet data
 					// Add received data to temporary file
