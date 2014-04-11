@@ -39,9 +39,9 @@ public class WindowedChannel implements NetworkListener {
 	// QUEUE for important packets
 	private ArrayList<TransportPacket> packetList = new ArrayList<TransportPacket>();
 	private ArrayList<Byte> tempFile = new ArrayList<Byte>();
-	private byte lastStream = -1;
-
 	private boolean expectNewStream = true;
+	private boolean packetCountKnow = false;
+	private int packetCount;
 	private ArrayList<Integer> openSequences = new ArrayList<Integer>();
 	
 	private HashMap<Integer, byte[]> integerSequencemap = new HashMap();
@@ -320,7 +320,8 @@ public class WindowedChannel implements NetworkListener {
 						// SET FLAG for last packet in list to mark end of file
 						System.out.println("ADDED FILE TO QUEUE: "+packetList.size());
 						temp.get(temp.size() - 1).setFlags(
-								TransportPacket.MORE_FRAGMENTS_FLAG);
+								TransportPacket.FRAGMENTED);
+						System.out.println("------------>" +temp.size());
 						for(TransportPacket p : temp){
 							p.setPacketCount(temp.size());
 						}
@@ -350,6 +351,7 @@ public class WindowedChannel implements NetworkListener {
 		int length = 0;
 		for(int i : integerSequencemap.keySet()){
 			length += integerSequencemap.get(i).length;
+			System.out.println(i+", "+new String(integerSequencemap.get(i)));
 		}
 		byte[] ret = new byte[length];
 		for(int i : integerSequencemap.keySet()){
@@ -406,34 +408,27 @@ public class WindowedChannel implements NetworkListener {
 					// packetList.add(transportPacket);
 					queueSender.priorityPacket(transportPacket);
 					if (expectNewStream) {
-						openSequences.clear();
-						for (int i = 0; i <= received.getPacketCount()+1; i++) {
-							openSequences.add(i);
-						}
-						expectNewStream = false;
+						System.out.println("NEW FILE");
+						integerSequencemap.clear();
 					}
-					boolean endOfFile = false;
 
-					
-					System.out.print("---> ");
-					for (int a : openSequences) {
-						System.out.print(a + ", ");
-					}
-					System.out.println("");
+
 					System.out.println("Received :"+seq);
 
 
-					if (openSequences.contains(seq)) {
-						System.out.println("Found");
+					if (!integerSequencemap.containsKey(seq)) {
 						integerSequencemap.put(seq, received.getData());
-//						addBytesToFile(tempFile, received.getData());
-						openSequences.remove(openSequences.indexOf(received
-								.getSequenceNumber()));
+						if(transportPacket.isFlagSet(TransportPacket.FRAGMENTED)){
+							packetCountKnow = true;
+							packetCount = seq;
+							System.out.println("SEQCOUNT: "+seq);
+						}
+//						System.out.println("Received :"+seq);
+
 					}
-					if (openSequences.size() == 0) {
+					if (packetCountKnow&&integerSequencemap.size()==seq) {
 						System.out.println("FILE COMPLETE!");
-						endOfFile = true;
-						lastStream = received.getStreamNumber();
+
 						System.out.println(new String(parseFile(tempFile)));
 						tempFile.clear();
 						expectNewStream = true;
