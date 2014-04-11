@@ -324,6 +324,7 @@ public class WindowedChannel implements NetworkListener {
 		int length = bytes.size();
 
 		byte[ ] ret = new byte[length];
+		return ret;
 	
 	}
 	public void addBytesToFile(ArrayList<Byte> bytes, byte[] data){
@@ -357,6 +358,7 @@ public class WindowedChannel implements NetworkListener {
 						if (received.getStreamNumber() > lastStream) {
 							endOfFile = true;
 							lastStream = received.getStreamNumber();
+							System.out.println(new String(parseFile(tempFile)));
 			
 						}else{
 							addBytesToFile(tempFile,received.getData());
