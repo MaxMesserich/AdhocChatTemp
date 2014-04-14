@@ -242,7 +242,12 @@ public class WindowedChannel implements NetworkListener {
 		}
 
 		public void receivedACK(int seq, int ack, InetAddress ip) {
+			if(!devices.contains(ip)){
+				System.out.println("New device in chat");
+				devices.add(ip);
+			}
 			if (!ackMap.containsKey(ack)) {
+				System.out.println("ACK: "+ack+" -- "+ip.toString());
 				ackMap.put(ack, new ArrayList<InetAddress>());
 			}
 			ArrayList<InetAddress> ackList = ackMap.get(ack);
@@ -251,9 +256,10 @@ public class WindowedChannel implements NetworkListener {
 				ackList.add(ip);
 			}
 			if (ackList.size() == devices.size()) {
+				System.out.println("Recevied all expected ACKs.");
 				int index = expectedACK.indexOf(ack);
 				if (index > -1) {
-
+					
 					expectedACK.remove(index);
 				}
 			}
