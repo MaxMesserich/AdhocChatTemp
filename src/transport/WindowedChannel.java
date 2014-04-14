@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.SortedSet;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -24,8 +23,8 @@ import network.NetworkListener;
 import network.NetworkPacket;
 
 public class WindowedChannel implements NetworkListener {
-	public static final int WNDSZ = 5;
-	private static final int MSS = 20;
+	public static final int WNDSZ = 2;
+	private static final int MSS = 100;
 	private InetAddress localAddress;
 	private InetAddress address;
 	private NetworkInterface networkInterface;
@@ -46,8 +45,10 @@ public class WindowedChannel implements NetworkListener {
 	private int packetCount;
 
 	private ArrayList<Integer> openSequences = new ArrayList<Integer>();
-	
-	private HashMap<Integer, byte[]> integerSequencemap = new HashMap();
+	private ArrayList<InetAddress> devices = new ArrayList<InetAddress>();
+	private HashMap<Integer, ArrayList<InetAddress>> ackMap = new HashMap<Integer, ArrayList<InetAddress>>();
+	private HashMap<Integer, byte[]> integerSequencemap = new HashMap<Integer, byte[]>();
+
 	// private ArrayList<TranportPacket>
 
 	private byte streamNumber = 0;
@@ -57,7 +58,7 @@ public class WindowedChannel implements NetworkListener {
 		this.localAddress = localAddress;
 		this.address = address;
 		this.networkInterface = networkInterface;
-
+		
 		pipedOut = new PipedOutputStream();
 		in = new PipedInputStream(pipedOut);
 
@@ -75,6 +76,10 @@ public class WindowedChannel implements NetworkListener {
 
 	}
 
+	public void addDeviceIP(InetAddress device) {
+		devices.add(device);
+	}
+
 	// Reads the queue of the channel and sends data in a windows. continues
 	// after every send packet is ack'ed
 	private class QueueSender extends TimerTask {
@@ -83,7 +88,6 @@ public class WindowedChannel implements NetworkListener {
 		private int sendIndex;
 		private ArrayList<Integer> expectedACK;
 		private ArrayList<TransportPacket> currentWindow;
-		private ArrayList<TransportPacket> newPackets = new ArrayList<TransportPacket>();
 
 		public void priorityPacket(TransportPacket packet) {
 			if (currentWindow.size() > 0) {
@@ -101,7 +105,6 @@ public class WindowedChannel implements NetworkListener {
 				currentWindow.add(packet);
 			}
 
-
 		}
 
 		public QueueSender(ArrayList<TransportPacket> queue) {
@@ -115,7 +118,7 @@ public class WindowedChannel implements NetworkListener {
 		private void fillWindow() {
 			int index = 0;
 			if (currentWindow.size() == 0) {
-				System.out.println("window empty");
+
 				while (currentWindow.size() < WNDSZ && packetList.size() > 0
 						&& index < packetList.size()) {
 
@@ -124,14 +127,7 @@ public class WindowedChannel implements NetworkListener {
 					t = packetList.get(index);
 					// Check whether packet has same stream number
 					if (t.getStreamNumber() != this.currentStream) {
-						System.out.println("wrong stream" + t.getStreamNumber()
-								+ ", " + currentStream);
-						for (int i = 0; i < packetList.size(); i++) {
-							System.out.print(packetList.get(i)
-									.getStreamNumber());
-						}
-						System.out.println("");
-						System.out.println("WINDOW: " + currentWindow.size());
+
 						break;
 					} else {
 						// If not continue polling and adding expected ACK's
@@ -245,12 +241,21 @@ public class WindowedChannel implements NetworkListener {
 
 		}
 
-		public void receivedACK(int seq, int ack) {
+		public void receivedACK(int seq, int ack, InetAddress ip) {
+			if (!ackMap.containsKey(ack)) {
+				ackMap.put(ack, new ArrayList<InetAddress>());
+			}
+			ArrayList<InetAddress> ackList = ackMap.get(ack);
 
-			int index = expectedACK.indexOf(ack);
-			if (index > -1) {
-				System.out.println("ACK: " + ack);
-				expectedACK.remove(index);
+			if (!ackList.contains(ip)) {
+				ackList.add(ip);
+			}
+			if (ackList.size() == devices.size()) {
+				int index = expectedACK.indexOf(ack);
+				if (index > -1) {
+
+					expectedACK.remove(index);
+				}
 			}
 
 		}
@@ -272,7 +277,7 @@ public class WindowedChannel implements NetworkListener {
 					byte[] data = in.readLine().getBytes();
 					int dataPosition = 0;
 					if (data.length > 0) {
-				
+
 						ArrayList<TransportPacket> temp = new ArrayList<TransportPacket>();
 						while (data.length - dataPosition > MSS) {
 							// System.out.println(data.length + ", " +
@@ -310,11 +315,11 @@ public class WindowedChannel implements NetworkListener {
 
 						}
 						// SET FLAG for last packet in list to mark end of file
-						System.out.println("ADDED FILE TO QUEUE: "+packetList.size());
+
 						temp.get(temp.size() - 1).setFlags(
 								TransportPacket.FRAGMENTED);
-						System.out.println("------------>" +temp.size());
-						for(TransportPacket p : temp){
+
+						for (TransportPacket p : temp) {
 							p.setPacketCount(temp.size());
 						}
 						packetList.addAll(temp);
@@ -322,8 +327,7 @@ public class WindowedChannel implements NetworkListener {
 						//
 						seqNumber = 0;
 						streamNumber++;
-						System.out
-								.println("new stream number: " + streamNumber);
+
 					}
 				} catch (IOException e) {
 				}
@@ -344,23 +348,22 @@ public class WindowedChannel implements NetworkListener {
 		ArrayList<Integer> keys = new ArrayList<Integer>();
 		keys.addAll(integerSequencemap.keySet());
 		Collections.sort(keys);
-		ArrayList<Byte> file= new ArrayList<Byte>();
+		ArrayList<Byte> file = new ArrayList<Byte>();
 
-	
-		for(int i : keys){
-			
-			byte[ ] temp = integerSequencemap.get(i);
-			for(int a = 0; a<temp.length; a++){
+		for (int i : keys) {
+
+			byte[] temp = integerSequencemap.get(i);
+			for (int a = 0; a < temp.length; a++) {
 				file.add(temp[a]);
 			}
-			
+
 		}
 		length = file.size();
 		byte[] ret = new byte[length];
-		for(int i=0; i<length;i++){
+		for (int i = 0; i < length; i++) {
 			ret[i] = file.get(i);
 		}
-		
+
 		return ret;
 
 	}
@@ -368,9 +371,9 @@ public class WindowedChannel implements NetworkListener {
 	public void addBytesToFile(ArrayList<Byte> bytes, byte[] data) {
 		for (byte b : data) {
 			bytes.add(b);
-//			System.out.print(b + " ");
+			// System.out.print(b + " ");
 		}
-//		System.out.println(new String(data));
+		// System.out.println(new String(data));
 		System.out.println("currentfile size: " + bytes.size());
 	}
 
@@ -385,9 +388,9 @@ public class WindowedChannel implements NetworkListener {
 			if (received != null) {
 
 				if (received.isFlagSet(TransportPacket.ACK_FLAG)) {
-					System.out.println("GOT ACK "
-							+ received.getAcknowledgeNumber());
-					queueSender.receivedACK(0, received.getAcknowledgeNumber());
+					// check whether all devices send ACK
+					queueSender.receivedACK(0, received.getAcknowledgeNumber(), packet.getSourceAddress());
+
 					// React to ACK
 				} else {
 					// IF ACK field == -1 -> data packet
@@ -409,27 +412,26 @@ public class WindowedChannel implements NetworkListener {
 					if (expectNewStream) {
 
 						integerSequencemap.clear();
+						ackMap.clear();
 						expectNewStream = false;
 						packetCountKnow = false;
 					}
 
-
-
-					if (received.getStreamNumber()==this.streamNumber&&!integerSequencemap.containsKey(seq)) {
+					if (received.getStreamNumber() == this.streamNumber
+							&& !integerSequencemap.containsKey(seq)) {
 
 						integerSequencemap.put(seq, received.getData());
-						if(received.isFlagSet(TransportPacket.FRAGMENTED)){
+						if (received.isFlagSet(TransportPacket.FRAGMENTED)) {
 							packetCountKnow = true;
-							packetCount = seq+1;
-							
+							packetCount = seq + 1;
 
 						}
-//						System.out.println("Received :"+seq);
+						// System.out.println("Received :"+seq);
 
 					}
-		
-					if (packetCountKnow&&integerSequencemap.size()==packetCount) {
 
+					if (packetCountKnow
+							&& integerSequencemap.size() == packetCount) {
 
 						System.out.println(new String(parseFile(tempFile)));
 						tempFile.clear();
@@ -452,10 +454,7 @@ public class WindowedChannel implements NetworkListener {
 		public synchronized void run() {
 			// while (true) {
 			if (queueSender.expectedACK.size() > 0) {
-				System.out.print("EXP: ");
-				for (int i : queueSender.expectedACK) {
-					System.out.print(i + ",");
-				}
+
 				System.out.println();
 				TransportPacket pac = new TransportPacket(new byte[0]);
 				pac.setAcknowledgeNumber(queueSender.expectedACK.get(0));
@@ -463,7 +462,6 @@ public class WindowedChannel implements NetworkListener {
 						pac.getBytes()));
 				// queueSender.receivedACK(0, queueSender.expectedACK.get(0));
 			}
-
 			// }
 		}
 	}
